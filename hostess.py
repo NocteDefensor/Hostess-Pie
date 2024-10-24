@@ -3,7 +3,7 @@
 from colorama import init, Fore
 import csv, os, socket, json, subprocess, shutil, urllib.request, re
 
-VERSION_NUMBER="v1.0"
+VERSION_NUMBER="v2.0"
 DEBUG_ON=False
 
 DEBUG="DEBUG"
@@ -11,7 +11,7 @@ SUCCESS="SUCCESS"
 ERROR="ERROR"
 
 discovery_commands = {
-	'amass':'amass enum -v -src -ip -brute -min-for-recursive 2 -oA ./results/amass-results -df ./domains.txt',
+	'amass':'amass-v3 enum -v -brute -ip -min-for-recursive 2 -oA ./results/amass-results -df ./domains.txt',
 	'assetfinder':'while read d; do assetfinder --subs-only ${d} >> "./results/assetfinder-${d}.txt"; done < ./domains.txt',
 	'assetfinder_append':'/bin/cat ./results/assetfinder-* >> ./results/assetfinder-combined.txt',
 	'getallurls':'/bin/cat ./domains.txt | getallurls --subs --o ./results/gau-raw.txt --threads 5',
@@ -34,7 +34,7 @@ def setup():
 	log("Welcome to {} of Hostess Pie. This is subdomain enumeration tool named after the portable and superior type of pies.".format(VERSION_NUMBER))
 
 	# install necessary apps
-	cmd_exists("amass")
+	cmd_exists("amass-v3")
 	cmd_exists("assetfinder")
 	cmd_exists("getallurls")
 	cmd_exists("unfurl")
@@ -65,11 +65,12 @@ def cmd_exists(cmd):
 		return None
 
 def install(program):
-	if program == "amass":
-		log("Installing Amass...")
+	if program == "amass-v3":
+		log("Installing Amass v3.19.3...")
 		url = "https://github.com/OWASP/Amass/releases/download/v3.19.3/amass_linux_amd64.zip"
 		urllib.request.urlretrieve(url, "/tmp/amass.zip")
-		run_command('unzip -j "/tmp/amass.zip" "amass_linux_amd64/amass" -d "/usr/local/bin/"')
+		run_command('unzip -j "/tmp/amass.zip" "amass_linux_amd64/amass" -d "/tmp"')
+		run_command('mv /tmp/amass /usr/local/bin/amass-v3');
 	elif program == "assetfinder":
 		log("Installing assetfinder...")
 		url = "https://github.com/tomnomnom/assetfinder/releases/download/v0.1.1/assetfinder-linux-amd64-0.1.1.tgz"
@@ -173,13 +174,13 @@ def split_files():
 	log("The inscope- and additional-subdomains CSV files have been created!")
 
 def execute_amass():
-	log('Executing amass..')
+	log('Executing amass-v3..')
 	amass_results = run_command(discovery_commands["amass"])
 	if amass_results is not None:
 		f = open('./results/amass-results.json', 'r')
 		amass_results_lines = f.read().strip('\n').split('\n')
 		# combine into a single string, comma seperated, surronded with "[ ]".
-		# needed to fix JSON format because amass is not doing it properly.
+		# needed to fix JSON format because amass sucks at doing it properly.
 		json_string = '[' + ','.join(amass_results_lines) + ']'
 		json_data = json.loads(json_string)
 		f.close()
@@ -232,6 +233,12 @@ def convert_fullscope():
 
 	return None
 
+def zip_results():
+    command = "zip -r hostess-data.zip ./results/* inscope-subdomains.csv additional-subdomains.csv subdomains.csv"
+    run_command(command)
+    return None
+
+
 def main():
 
 	# prepare
@@ -256,9 +263,7 @@ def main():
 	
 	hosts_to_ips("./results/subdomains.txt") # creates subdomains.csv
 	split_files() # creates inscope-subdomains.csv, additional-subdomains.csv
-
-	# TODO: PROMPT FOR "do you want to zip up the results?"
-	#zip_results()
+	zip_results()
 
 main()
 exit(0)
